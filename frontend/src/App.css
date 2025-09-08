@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 * {
   margin: 0;
@@ -7,7 +7,7 @@
 }
 
 body {
-  font-family: 'Figtree', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   line-height: 1.6;
   color: #1f2937;
   background-color: #f9fafb;
@@ -17,29 +17,41 @@ body {
   min-height: 100vh;
 }
 
-/* Custom scrollbar styles */
+/* DA Philippines Government Theme Colors */
+:root {
+  --da-primary: #059669; /* Emerald green - main DA brand color */
+  --da-primary-light: #d1fae5; /* Light green for backgrounds */
+  --da-secondary: #065f46; /* Dark green for contrast */
+  --da-accent: #10b981; /* Bright green for highlights */
+  --da-warning: #f59e0b; /* Amber for warnings */
+  --da-danger: #dc2626; /* Red for alerts */
+  --da-gray: #6b7280; /* Neutral gray */
+  --da-light: #f0fdf4; /* Very light green */
+}
+
+/* Custom scrollbar with DA theme */
 ::-webkit-scrollbar {
   width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--da-light);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--da-primary);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--da-secondary);
 }
 
-/* Custom animations */
-@keyframes slideIn {
+/* Enhanced DA-themed animations */
+@keyframes daSlideIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
@@ -47,96 +59,138 @@ body {
   }
 }
 
-@keyframes pulse {
+@keyframes daPulse {
   0%, 100% {
     opacity: 1;
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.7;
   }
 }
 
-.animate-slideIn {
-  animation: slideIn 0.3s ease-out;
+@keyframes daGlow {
+  0%, 100% {
+    box-shadow: 0 0 5px var(--da-primary);
+  }
+  50% {
+    box-shadow: 0 0 20px var(--da-primary), 0 0 30px var(--da-primary);
+  }
 }
 
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+.da-animate-slideIn {
+  animation: daSlideIn 0.4s ease-out;
 }
 
-/* Enhanced button hover effects */
+.da-animate-pulse {
+  animation: daPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.da-animate-glow {
+  animation: daGlow 2s ease-in-out infinite;
+}
+
+/* Enhanced button hover effects with DA theme */
 button:hover {
-  transform: translateY(-1px);
-  transition: transform 0.2s ease;
-}
-
-/* Card hover effects */
-.card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   transition: all 0.3s ease;
 }
 
-/* Status indicators */
-.status-indicator {
+.da-button-primary {
+  background: linear-gradient(135deg, var(--da-primary) 0%, var(--da-accent) 100%);
+  color: white;
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.da-button-primary:hover {
+  background: linear-gradient(135deg, var(--da-secondary) 0%, var(--da-primary) 100%);
+  box-shadow: 0 8px 25px -5px rgba(5, 150, 105, 0.4);
+}
+
+/* Card hover effects with DA theme */
+.da-card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -10px rgba(5, 150, 105, 0.15);
+  border-color: var(--da-primary);
+  transition: all 0.4s ease;
+}
+
+/* Status indicators with DA theme */
+.da-status-indicator {
   position: relative;
   overflow: hidden;
 }
 
-.status-indicator::before {
+.da-status-indicator::before {
   content: '';
   position: absolute;
   top: 0;
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-  transition: left 0.5s;
+  background: linear-gradient(90deg, transparent, rgba(5, 150, 105, 0.4), transparent);
+  transition: left 0.6s;
 }
 
-.status-indicator:hover::before {
+.da-status-indicator:hover::before {
   left: 100%;
 }
 
-/* Gradient backgrounds */
-.gradient-bg {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+/* DA Government gradient backgrounds */
+.da-gradient-primary {
+  background: linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%);
 }
 
-.gradient-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.da-gradient-light {
+  background: linear-gradient(135deg, #f0fdf4 0%, #d1fae5 50%, #a7f3d0 100%);
+}
+
+.da-gradient-dark {
+  background: linear-gradient(135deg, #065f46 0%, #047857 50%, #059669 100%);
+}
+
+/* DA text gradients */
+.da-text-gradient {
+  background: linear-gradient(135deg, var(--da-primary) 0%, var(--da-accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  font-weight: 600;
 }
 
-/* Custom badge styles */
-.badge-success {
-  background-color: #dcfce7;
-  color: #166534;
-  border: 1px solid #bbf7d0;
+/* Custom DA badge styles */
+.da-badge-success {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
 }
 
-.badge-warning {
+.da-badge-warning {
   background-color: #fef3c7;
   color: #92400e;
   border: 1px solid #fde68a;
 }
 
-.badge-danger {
+.da-badge-danger {
   background-color: #fee2e2;
   color: #991b1b;
   border: 1px solid #fecaca;
 }
 
-/* Loading states */
-.loading-shimmer {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 2s infinite;
+.da-badge-primary {
+  background-color: var(--da-primary);
+  color: white;
+  border: 1px solid var(--da-secondary);
 }
 
-@keyframes shimmer {
+/* Loading states with DA theme */
+.da-loading-shimmer {
+  background: linear-gradient(90deg, #f0fdf4 25%, #d1fae5 50%, #f0fdf4 75%);
+  background-size: 200% 100%;
+  animation: daShimmer 2s infinite;
+}
+
+@keyframes daShimmer {
   0% {
     background-position: -200% 0;
   }
@@ -145,30 +199,30 @@ button:hover {
   }
 }
 
-/* Focus states */
+/* Focus states with DA theme */
 input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  box-shadow: 0 0 0 2px #3b82f6;
-  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.2);
+  border-color: var(--da-primary);
 }
 
-/* Table styles */
-.table-hover tbody tr:hover {
-  background-color: #f8fafc;
+/* Table styles with DA theme */
+.da-table-hover tbody tr:hover {
+  background-color: var(--da-light);
 }
 
 /* Custom spacing */
-.space-y-6 > * + * {
+.da-space-y-6 > * + * {
   margin-top: 1.5rem;
 }
 
-.space-y-4 > * + * {
+.da-space-y-4 > * + * {
   margin-top: 1rem;
 }
 
-.space-y-3 > * + * {
+.da-space-y-3 > * + * {
   margin-top: 0.75rem;
 }
 
@@ -190,69 +244,149 @@ textarea:focus {
   }
 }
 
-/* Alert styles */
-.alert-success {
-  background-color: #dcfce7;
-  border-color: #bbf7d0;
-  color: #166534;
+/* Alert styles with DA theme */
+.da-alert-success {
+  background-color: #d1fae5;
+  border-color: #a7f3d0;
+  color: #065f46;
 }
 
-.alert-error {
+.da-alert-error {
   background-color: #fee2e2;
   border-color: #fecaca;
   color: #991b1b;
+}
+
+.da-alert-warning {
+  background-color: #fef3c7;
+  border-color: #fde68a;
+  color: #92400e;
 }
 
 /* Typography enhancements */
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
   line-height: 1.25;
+  color: #1f2937;
+}
+
+.da-heading-primary {
+  color: var(--da-secondary);
 }
 
 .font-mono {
   font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
 }
 
-/* Interactive elements */
-.interactive {
+/* Interactive elements with DA theme */
+.da-interactive {
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
-.interactive:hover {
-  opacity: 0.8;
+.da-interactive:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
 }
 
-.interactive:active {
+.da-interactive:active {
   transform: scale(0.98);
 }
 
-/* Glass morphism effect */
-.glass {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+/* Glass morphism effect with DA theme */
+.da-glass {
+  background: rgba(240, 253, 244, 0.2);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(5, 150, 105, 0.1);
+}
+
+/* Philippine flag inspired accents */
+.da-accent-blue {
+  color: #1e40af;
+}
+
+.da-accent-red {
+  color: #dc2626;
+}
+
+.da-accent-yellow {
+  color: #f59e0b;
 }
 
 /* Success/Error message animations */
-.message-enter {
+.da-message-enter {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-15px);
 }
 
-.message-enter-active {
+.da-message-enter-active {
   opacity: 1;
   transform: translateY(0);
-  transition: all 0.3s ease;
+  transition: all 0.4s ease;
 }
 
-.message-exit {
+.da-message-exit {
   opacity: 1;
   transform: translateY(0);
 }
 
-.message-exit-active {
+.da-message-exit-active {
   opacity: 0;
-  transform: translateY(-10px);
-  transition: all 0.3s ease;
+  transform: translateY(-15px);
+  transition: all 0.4s ease;
+}
+
+/* Logo container styling */
+.da-logo-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 150, 105, 0.05);
+  border-radius: 50%;
+  padding: 8px;
+}
+
+/* Government official styling */
+.da-official-seal {
+  filter: drop-shadow(0 2px 8px rgba(5, 150, 105, 0.2));
+}
+
+/* Department branding */
+.da-brand-text {
+  background: linear-gradient(135deg, var(--da-secondary) 0%, var(--da-primary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+/* Print styles for official documents */
+@media print {
+  .da-no-print {
+    display: none !important;
+  }
+  
+  .da-print-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --da-primary: #047857;
+    --da-secondary: #064e3b;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

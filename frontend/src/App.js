@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import axios from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Button } from "./components/ui/button";
@@ -10,7 +10,6 @@ import { Badge } from "./components/ui/badge";
 import { Alert, AlertDescription } from "./components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
-import { Separator } from "./components/ui/separator";
 import { 
   Car, 
   Shield, 
@@ -22,13 +21,17 @@ import {
   KeyboardIcon,
   Users,
   Activity,
-  Timer
+  Timer,
+  Building
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Auth Context
+// DA Logo URL
+const DA_LOGO_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Department_of_Agriculture_of_the_Philippines.svg/490px-Department_of_Agriculture_of_the_Philippines.svg.png";
+
+// Auth Context with improved error handling
 const AuthContext = React.createContext();
 
 const useAuth = () => {
@@ -39,49 +42,78 @@ const useAuth = () => {
   return context;
 };
 
+class AuthService {
+  static setAuthToken(token) {
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      localStorage.setItem('token', token);
+    } else {
+      delete axios.defaults.headers.common['Authorization'];
+      localStorage.removeItem('token');
+    }
+  }
+
+  static getStoredToken() {
+    return localStorage.getItem('token');
+  }
+
+  static async validateToken(token) {
+    try {
+      const response = await axios.get(`${API}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return { valid: true, user: response.data };
+    } catch (error) {
+      return { valid: false, error: error.response?.data?.detail };
+    }
+  }
+}
+
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      fetchUserInfo();
-    } else {
-      setLoading(false);
-    }
+    initializeAuth();
   }, []);
 
-  const fetchUserInfo = async () => {
-    try {
-      const response = await axios.get(`${API}/auth/me`);
-      setUser(response.data);
-    } catch (error) {
-      localStorage.removeItem('token');
-      delete axios.defaults.headers.common['Authorization'];
-    } finally {
-      setLoading(false);
+  const initializeAuth = async () => {
+    const token = AuthService.getStoredToken();
+    if (token) {
+      const validation = await AuthService.validateToken(token);
+      if (validation.valid) {
+        AuthService.setAuthToken(token);
+        setUser(validation.user);
+      } else {
+        AuthService.setAuthToken(null);
+      }
     }
+    setLoading(false);
   };
 
   const login = async (username, password) => {
     try {
-      const response = await axios.post(`${API}/auth/login`, { username, password });
+      const response = await axios.post(`${API}/auth/login`, { 
+        username: username.trim(), 
+        password: password.trim() 
+      });
+      
       const { access_token, user: userData } = response.data;
       
-      localStorage.setItem('token', access_token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+      AuthService.setAuthToken(access_token);
       setUser(userData);
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.response?.data?.detail || 'Login failed' };
+      console.error('Login error:', error);
+      return { 
+        success: false, 
+        error: error.response?.data?.detail || 'Login failed. Please check your credentials.' 
+      };
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
+    AuthService.setAuthToken(null);
     setUser(null);
   };
 
@@ -92,7 +124,7 @@ const AuthProvider = ({ children }) => {
   );
 };
 
-// Login Component
+// Login Component with DA theme
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -102,6 +134,11 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!username.trim() || !password.trim()) {
+      setError('Please enter both username and password');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -113,14 +150,26 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mb-4">
-            <Shield className="w-8 h-8 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-xl border-0">
+        <CardHeader className="text-center pb-8">
+          <div className="mx-auto w-20 h-20 mb-6 flex items-center justify-center">
+            <img 
+              src={DA_LOGO_URL} 
+              alt="Department of Agriculture Philippines"
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+            <div className="w-20 h-20 bg-green-600 rounded-full hidden items-center justify-center">
+              <Building className="w-10 h-10 text-white" />
+            </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">Vehicle Gate Pass</CardTitle>
-          <p className="text-gray-600">Sign in to access the system</p>
+          <CardTitle className="text-2xl font-bold text-gray-900 mb-2">DA Vehicle Gate Pass</CardTitle>
+          <p className="text-gray-600">Department of Agriculture Philippines</p>
+          <p className="text-sm text-gray-500">Sign in to access the vehicle monitoring system</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -133,6 +182,7 @@ const Login = () => {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 placeholder="Enter your username"
+                className="mt-1"
               />
             </div>
             <div>
@@ -144,25 +194,36 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="Enter your password"
+                className="mt-1"
               />
             </div>
             {error && (
               <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button 
+              type="submit" 
+              className="w-full bg-green-600 hover:bg-green-700" 
+              disabled={loading}
+            >
               {loading ? 'Signing In...' : 'Sign In'}
               <LogIn className="w-4 h-4 ml-2" />
             </Button>
           </form>
+          <div className="mt-6 text-center text-xs text-gray-500">
+            <p>Test Credentials:</p>
+            <p>Admin: admin / admin123</p>
+            <p>Guard: guard1 / guard123</p>
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 };
 
-// Guard Interface Component
+// Guard Interface Component with DA theme
 const GuardInterface = () => {
   const [plateNumber, setPlateNumber] = useState('');
   const [scanMethod, setScanMethod] = useState('scanner');
@@ -173,7 +234,7 @@ const GuardInterface = () => {
 
   useEffect(() => {
     fetchRecentLogs();
-    const interval = setInterval(fetchRecentLogs, 5000); // Refresh every 5 seconds
+    const interval = setInterval(fetchRecentLogs, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -195,7 +256,7 @@ const GuardInterface = () => {
 
     try {
       const response = await axios.post(`${API}/scan`, {
-        plate_number: plateNumber.toUpperCase(),
+        plate_number: plateNumber.toUpperCase().trim(),
         scan_method: scanMethod
       });
 
@@ -217,15 +278,29 @@ const GuardInterface = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 p-4">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
           <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Guard Station</h1>
-              <p className="text-gray-600">Welcome, {user?.username}</p>
+            <div className="flex items-center space-x-4">
+              <img 
+                src={DA_LOGO_URL} 
+                alt="DA Logo"
+                className="w-12 h-12 object-contain"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+              <div className="w-12 h-12 bg-green-600 rounded-full hidden items-center justify-center">
+                <Building className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Guard Station</h1>
+                <p className="text-gray-600">Welcome, {user?.username}</p>
+              </div>
             </div>
-            <Badge variant="secondary" className="px-3 py-1">
+            <Badge variant="secondary" className="px-3 py-1 bg-green-100 text-green-800">
               <Shield className="w-4 h-4 mr-1" />
               Guard Access
             </Badge>
@@ -233,7 +308,7 @@ const GuardInterface = () => {
 
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle className="flex items-center">
+              <CardTitle className="flex items-center text-green-700">
                 <Scan className="w-5 h-5 mr-2" />
                 Vehicle Scanner
               </CardTitle>
@@ -248,14 +323,14 @@ const GuardInterface = () => {
                       value={plateNumber}
                       onChange={(e) => setPlateNumber(e.target.value)}
                       placeholder="Enter or scan plate number"
-                      className="text-lg font-mono"
+                      className="text-lg font-mono mt-1"
                       required
                     />
                   </div>
                   <div>
                     <Label>Scan Method</Label>
                     <Select value={scanMethod} onValueChange={setScanMethod}>
-                      <SelectTrigger>
+                      <SelectTrigger className="mt-1">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -275,7 +350,11 @@ const GuardInterface = () => {
                     </Select>
                   </div>
                 </div>
-                <Button type="submit" disabled={loading} className="w-full md:w-auto">
+                <Button 
+                  type="submit" 
+                  disabled={loading} 
+                  className="w-full md:w-auto bg-green-600 hover:bg-green-700"
+                >
                   {loading ? 'Processing...' : 'Process Entry/Exit'}
                   {scanMethod === 'scanner' ? <Scan className="w-4 h-4 ml-2" /> : <KeyboardIcon className="w-4 h-4 ml-2" />}
                 </Button>
@@ -300,7 +379,7 @@ const GuardInterface = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
+              <CardTitle className="flex items-center text-green-700">
                 <Activity className="w-5 h-5 mr-2" />
                 Recent Activity
               </CardTitle>
@@ -308,9 +387,9 @@ const GuardInterface = () => {
             <CardContent>
               <div className="space-y-3">
                 {recentLogs.map((log) => (
-                  <div key={log.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={log.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-100">
                     <div className="flex items-center space-x-3">
-                      <Badge variant={log.action === 'entry' ? 'default' : 'secondary'}>
+                      <Badge variant={log.action === 'entry' ? 'default' : 'secondary'} className={log.action === 'entry' ? 'bg-green-600' : 'bg-gray-600'}>
                         {log.action === 'entry' ? <LogIn className="w-3 h-3 mr-1" /> : <LogOut className="w-3 h-3 mr-1" />}
                         {log.action.toUpperCase()}
                       </Badge>
@@ -322,6 +401,9 @@ const GuardInterface = () => {
                     </div>
                   </div>
                 ))}
+                {recentLogs.length === 0 && (
+                  <p className="text-center text-gray-500 py-8">No recent activity</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -331,7 +413,7 @@ const GuardInterface = () => {
   );
 };
 
-// Admin Dashboard Component
+// Admin Dashboard Component with DA theme
 const AdminDashboard = () => {
   const [stats, setStats] = useState({});
   const [vehicles, setVehicles] = useState([]);
@@ -347,7 +429,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 10000); // Refresh every 10 seconds
+    const interval = setInterval(fetchDashboardData, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -374,7 +456,7 @@ const AdminDashboard = () => {
     try {
       await axios.post(`${API}/vehicles`, {
         ...newVehicle,
-        plate_number: newVehicle.plate_number.toUpperCase()
+        plate_number: newVehicle.plate_number.toUpperCase().trim()
       });
       setNewVehicle({
         plate_number: '',
@@ -389,25 +471,40 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 p-4">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600">Welcome, {user?.username}</p>
+          <div className="flex items-center space-x-4">
+            <img 
+              src={DA_LOGO_URL} 
+              alt="DA Logo"
+              className="w-12 h-12 object-contain"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+            <div className="w-12 h-12 bg-green-600 rounded-full hidden items-center justify-center">
+              <Building className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+              <p className="text-gray-600">Department of Agriculture - Vehicle Monitoring</p>
+              <p className="text-sm text-gray-500">Welcome, {user?.username}</p>
+            </div>
           </div>
-          <Badge variant="default" className="px-3 py-1">
+          <Badge variant="default" className="px-3 py-1 bg-green-600">
             <Shield className="w-4 h-4 mr-1" />
             Admin Access
           </Badge>
         </div>
 
-        {/* Stats Cards */}
+        {/* Stats Cards with DA colors */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <Card>
+          <Card className="border-green-200">
             <CardContent className="p-6">
               <div className="flex items-center">
-                <Activity className="h-8 w-8 text-blue-600" />
+                <Activity className="h-8 w-8 text-green-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Today's Activity</p>
                   <p className="text-2xl font-bold text-gray-900">{stats.today_entries_exits || 0}</p>
@@ -415,10 +512,10 @@ const AdminDashboard = () => {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-emerald-200">
             <CardContent className="p-6">
               <div className="flex items-center">
-                <Car className="h-8 w-8 text-green-600" />
+                <Car className="h-8 w-8 text-emerald-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Total Vehicles</p>
                   <p className="text-2xl font-bold text-gray-900">{stats.total_vehicles || 0}</p>
@@ -426,10 +523,10 @@ const AdminDashboard = () => {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-teal-200">
             <CardContent className="p-6">
               <div className="flex items-center">
-                <Users className="h-8 w-8 text-purple-600" />
+                <Users className="h-8 w-8 text-teal-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Inside Now</p>
                   <p className="text-2xl font-bold text-gray-900">{stats.vehicles_inside || 0}</p>
@@ -437,7 +534,7 @@ const AdminDashboard = () => {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-red-200">
             <CardContent className="p-6">
               <div className="flex items-center">
                 <AlertTriangle className="h-8 w-8 text-red-600" />
@@ -461,14 +558,14 @@ const AdminDashboard = () => {
           <TabsContent value="status">
             <Card>
               <CardHeader>
-                <CardTitle>Vehicles Currently Inside</CardTitle>
+                <CardTitle className="text-green-700">Vehicles Currently Inside DA Premises</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {vehicleStatus.map((status) => (
-                    <div key={status.plate_number} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={status.plate_number} className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200">
                       <div className="flex items-center space-x-4">
-                        <Badge variant={status.is_overstaying ? 'destructive' : 'default'}>
+                        <Badge variant={status.is_overstaying ? 'destructive' : 'default'} className={!status.is_overstaying ? 'bg-green-600' : ''}>
                           {status.plate_number}
                         </Badge>
                         <div>
@@ -497,14 +594,14 @@ const AdminDashboard = () => {
           <TabsContent value="logs">
             <Card>
               <CardHeader>
-                <CardTitle>Recent Entry/Exit Logs</CardTitle>
+                <CardTitle className="text-green-700">Recent Entry/Exit Logs</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {logs.map((log) => (
-                    <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg bg-green-50 border-green-200">
                       <div className="flex items-center space-x-3">
-                        <Badge variant={log.action === 'entry' ? 'default' : 'secondary'}>
+                        <Badge variant={log.action === 'entry' ? 'default' : 'secondary'} className={log.action === 'entry' ? 'bg-green-600' : ''}>
                           {log.action === 'entry' ? <LogIn className="w-3 h-3 mr-1" /> : <LogOut className="w-3 h-3 mr-1" />}
                           {log.action.toUpperCase()}
                         </Badge>
@@ -525,14 +622,14 @@ const AdminDashboard = () => {
           <TabsContent value="vehicles">
             <Card>
               <CardHeader>
-                <CardTitle>Registered Vehicles</CardTitle>
+                <CardTitle className="text-green-700">Registered Vehicles</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {vehicles.map((vehicle) => (
-                    <div key={vehicle.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={vehicle.id} className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200">
                       <div className="flex items-center space-x-4">
-                        <Badge variant={vehicle.vehicle_type === 'private' ? 'secondary' : 'default'}>
+                        <Badge variant={vehicle.vehicle_type === 'private' ? 'secondary' : 'default'} className={vehicle.vehicle_type === 'company' ? 'bg-green-600' : ''}>
                           {vehicle.plate_number}
                         </Badge>
                         <div>
@@ -556,7 +653,7 @@ const AdminDashboard = () => {
           <TabsContent value="add-vehicle">
             <Card>
               <CardHeader>
-                <CardTitle>Add New Vehicle</CardTitle>
+                <CardTitle className="text-green-700">Add New Vehicle</CardTitle>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleCreateVehicle} className="space-y-4">
@@ -568,18 +665,18 @@ const AdminDashboard = () => {
                         value={newVehicle.plate_number}
                         onChange={(e) => setNewVehicle({...newVehicle, plate_number: e.target.value})}
                         placeholder="ABC-1234"
-                        className="font-mono"
+                        className="font-mono mt-1"
                         required
                       />
                     </div>
                     <div>
                       <Label>Vehicle Type</Label>
                       <Select value={newVehicle.vehicle_type} onValueChange={(value) => setNewVehicle({...newVehicle, vehicle_type: value})}>
-                        <SelectTrigger>
+                        <SelectTrigger className="mt-1">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="company">Company Vehicle</SelectItem>
+                          <SelectItem value="company">DA Government Vehicle</SelectItem>
                           <SelectItem value="private">Private Vehicle</SelectItem>
                         </SelectContent>
                       </Select>
@@ -592,7 +689,8 @@ const AdminDashboard = () => {
                         id="owner_name"
                         value={newVehicle.owner_name}
                         onChange={(e) => setNewVehicle({...newVehicle, owner_name: e.target.value})}
-                        placeholder="John Doe"
+                        placeholder="Juan Dela Cruz"
+                        className="mt-1"
                         required
                       />
                     </div>
@@ -602,11 +700,12 @@ const AdminDashboard = () => {
                         id="department"
                         value={newVehicle.department}
                         onChange={(e) => setNewVehicle({...newVehicle, department: e.target.value})}
-                        placeholder="IT Department"
+                        placeholder="Field Operations"
+                        className="mt-1"
                       />
                     </div>
                   </div>
-                  <Button type="submit" className="w-full md:w-auto">
+                  <Button type="submit" className="w-full md:w-auto bg-green-600 hover:bg-green-700">
                     Add Vehicle
                     <Car className="w-4 h-4 ml-2" />
                   </Button>
@@ -626,12 +725,21 @@ const AppContent = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Shield className="w-8 h-8 text-white animate-pulse" />
+          <img 
+            src={DA_LOGO_URL} 
+            alt="DA Logo"
+            className="w-16 h-16 mx-auto mb-4 animate-pulse"
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'flex';
+            }}
+          />
+          <div className="w-16 h-16 bg-green-600 rounded-full hidden items-center justify-center mx-auto mb-4">
+            <Building className="w-8 h-8 text-white animate-pulse" />
           </div>
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">Loading DA Vehicle Gate Pass System...</p>
         </div>
       </div>
     );
@@ -644,18 +752,32 @@ const AppContent = () => {
   return (
     <div>
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white shadow-sm border-b border-green-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <Shield className="w-8 h-8 text-blue-600 mr-3" />
-              <h1 className="text-xl font-semibold text-gray-900">Vehicle Gate Pass System</h1>
+              <img 
+                src={DA_LOGO_URL} 
+                alt="DA Logo"
+                className="w-8 h-8 mr-3"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+              <div className="w-8 h-8 bg-green-600 rounded-full hidden items-center justify-center mr-3">
+                <Building className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">DA Vehicle Gate Pass System</h1>
+                <p className="text-xs text-gray-600">Department of Agriculture Philippines</p>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
-              <Badge variant="outline">
+              <Badge variant="outline" className="border-green-200 text-green-700">
                 {user.role.toUpperCase()}
               </Badge>
-              <Button variant="outline" onClick={logout}>
+              <Button variant="outline" onClick={logout} className="border-green-200 text-green-700 hover:bg-green-50">
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
               </Button>
