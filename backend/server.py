@@ -298,6 +298,9 @@ async def get_vehicles_status(current_user: dict = Depends(get_current_user)):
             is_overstaying = False
             
             if entry_time and isinstance(entry_time, datetime):
+                # Ensure both datetimes are timezone-aware
+                if entry_time.tzinfo is None:
+                    entry_time = entry_time.replace(tzinfo=timezone.utc)
                 duration = current_time - entry_time
                 duration_hours = duration.total_seconds() / 3600
                 
