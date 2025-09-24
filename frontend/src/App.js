@@ -484,7 +484,7 @@ const AdminDashboard = () => {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="text-gray-600">Department of Agriculture - Vehicle Monitoring</p>
+              <p className="text-gray-600">Department of Agriculture Region V - Vehicle Monitoring</p>
               <p className="text-sm text-gray-500">Welcome, {user?.username}</p>
             </div>
           </div>
