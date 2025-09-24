@@ -212,11 +212,6 @@ const Login = () => {
               <LogIn className="w-4 h-4 ml-2" />
             </Button>
           </form>
-          <div className="mt-6 text-center text-xs text-gray-500">
-            <p>Test Credentials:</p>
-            <p>Admin: admin / admin123</p>
-            <p>Guard: guard1 / guard123</p>
-          </div>
         </CardContent>
       </Card>
     </div>
