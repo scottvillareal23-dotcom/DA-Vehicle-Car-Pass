@@ -168,7 +168,7 @@ const Login = () => {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold text-gray-900 mb-2">DA Vehicle Gate Pass</CardTitle>
-          <p className="text-gray-600">Department of Agriculture Philippines</p>
+          <p className="text-gray-600">Department of Agriculture Region V</p>
           <p className="text-sm text-gray-500">Sign in to access the vehicle monitoring system</p>
         </CardHeader>
         <CardContent>
