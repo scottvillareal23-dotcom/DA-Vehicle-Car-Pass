@@ -373,28 +373,32 @@ class VisitorRegistrationRepository(BaseRepository):
         return {"id": str(result.inserted_id), **data}
     
     async def find_by_id(self, entity_id: str) -> Optional[dict]:
-        return await self.collection.find_one({"id": entity_id})
+        doc = await self.collection.find_one({"id": entity_id})
+        return convert_objectid_to_str(doc)
     
     async def find_by_plate_number(self, plate_number: str) -> Optional[dict]:
-        return await self.collection.find_one({
+        doc = await self.collection.find_one({
             "plate_number": plate_number, 
             "is_active": True,
             "expires_at": {"$gt": datetime.now(timezone.utc)}
         })
+        return convert_objectid_to_str(doc)
     
     async def find_all_active(self) -> List[dict]:
         cursor = self.collection.find({
             "is_active": True,
             "expires_at": {"$gt": datetime.now(timezone.utc)}
         })
-        return await cursor.to_list(1000)
+        docs = await cursor.to_list(1000)
+        return [convert_objectid_to_str(doc) for doc in docs]
     
     async def find_expired(self) -> List[dict]:
         cursor = self.collection.find({
             "is_active": True,
             "expires_at": {"$lte": datetime.now(timezone.utc)}
         })
-        return await cursor.to_list(1000)
+        docs = await cursor.to_list(1000)
+        return [convert_objectid_to_str(doc) for doc in docs]
 
 class EntryExitLogRepository(BaseRepository):
     """Entry/Exit log data access layer"""
