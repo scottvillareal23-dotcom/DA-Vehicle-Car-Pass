@@ -42,6 +42,27 @@ Config.UPLOAD_DIR.mkdir(exist_ok=True)
 client = AsyncIOMotorClient(Config.MONGO_URL)
 db = client[Config.DB_NAME]
 
+# Helper function to convert MongoDB documents
+def convert_objectid_to_str(doc):
+    """Convert MongoDB ObjectId to string recursively"""
+    if doc is None:
+        return None
+    if isinstance(doc, list):
+        return [convert_objectid_to_str(item) for item in doc]
+    if isinstance(doc, dict):
+        result = {}
+        for key, value in doc.items():
+            if key == '_id' and isinstance(value, ObjectId):
+                continue  # Skip MongoDB _id field
+            elif isinstance(value, ObjectId):
+                result[key] = str(value)
+            elif isinstance(value, (dict, list)):
+                result[key] = convert_objectid_to_str(value)
+            else:
+                result[key] = value
+        return result
+    return doc
+
 # Create the main app
 app = FastAPI(
     title="DA Vehicle Gate Pass System",
