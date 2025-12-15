@@ -332,10 +332,12 @@ class UserRepository(BaseRepository):
         return {"id": str(result.inserted_id), **data}
     
     async def find_by_id(self, entity_id: str) -> Optional[dict]:
-        return await self.collection.find_one({"id": entity_id})
+        doc = await self.collection.find_one({"id": entity_id})
+        return convert_objectid_to_str(doc)
     
     async def find_by_username(self, username: str) -> Optional[dict]:
-        return await self.collection.find_one({"username": username})
+        doc = await self.collection.find_one({"username": username})
+        return convert_objectid_to_str(doc)
 
 class VehicleRepository(BaseRepository):
     """Vehicle data access layer"""
