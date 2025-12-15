@@ -1940,14 +1940,28 @@ const AdminDashboard = () => {
               <CardContent>
                 <div className="space-y-3">
                   {visitors.map((visitor) => (
-                    <div key={visitor.id} className="p-4 border rounded-lg bg-blue-50 border-blue-200">
+                    <div 
+                      key={visitor.id} 
+                      className="p-4 border rounded-lg bg-blue-50 border-blue-200 hover:bg-blue-100 cursor-pointer transition-colors"
+                      onClick={() => {
+                        setSelectedVisitor(visitor);
+                        setIsVisitorModalOpen(true);
+                      }}
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-3">
                           <Badge className="bg-blue-600">{visitor.plate_number}</Badge>
                           <Badge variant="outline">{visitor.vehicle_type.toUpperCase()}</Badge>
+                          <Badge 
+                            variant={new Date(visitor.expires_at) > new Date() ? 'default' : 'destructive'}
+                            className="text-xs"
+                          >
+                            {new Date(visitor.expires_at) > new Date() ? 'ACTIVE' : 'EXPIRED'}
+                          </Badge>
                         </div>
-                        <div className="text-sm text-gray-500">
-                          Expires: {new Date(visitor.expires_at).toLocaleDateString()}
+                        <div className="flex items-center space-x-2">
+                          <Eye className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm text-blue-600 font-medium">View Details</span>
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -1960,6 +1974,15 @@ const AdminDashboard = () => {
                           <p><span className="font-medium">Visiting:</span> {visitor.department_visiting || 'N/A'}</p>
                         </div>
                       </div>
+                      <div className="mt-2 text-xs text-gray-500">
+                        <span>Expires: {new Date(visitor.expires_at).toLocaleString()}</span>
+                        {visitor.driver_license.license_photo_path && (
+                          <span className="ml-4 inline-flex items-center">
+                            <Camera className="w-3 h-3 mr-1" />
+                            License photo available
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                   {visitors.length === 0 && (
@@ -1968,6 +1991,16 @@ const AdminDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+            
+            {/* Visitor Detail Modal */}
+            <VisitorDetailModal 
+              visitor={selectedVisitor}
+              isOpen={isVisitorModalOpen}
+              onClose={() => {
+                setIsVisitorModalOpen(false);
+                setSelectedVisitor(null);
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="vehicles">
