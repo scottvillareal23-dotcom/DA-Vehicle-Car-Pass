@@ -1,5 +1,7 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -7,13 +9,16 @@ import os
 import logging
 import jwt
 import bcrypt
+import base64
+import uuid
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
-import uuid
 from datetime import datetime, timezone, timedelta
 from enum import Enum
 from abc import ABC, abstractmethod
+import io
+from PIL import Image
 
 
 ROOT_DIR = Path(__file__).parent
@@ -27,6 +32,10 @@ class Config:
     JWT_ALGORITHM = 'HS256'
     JWT_EXPIRATION_HOURS = 24
     CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '*').split(',')
+    UPLOAD_DIR = ROOT_DIR / "uploads"
+
+# Create upload directory
+Config.UPLOAD_DIR.mkdir(exist_ok=True)
 
 # Database connection
 client = AsyncIOMotorClient(Config.MONGO_URL)
@@ -35,8 +44,8 @@ db = client[Config.DB_NAME]
 # Create the main app
 app = FastAPI(
     title="DA Vehicle Gate Pass System",
-    description="Department of Agriculture Philippines - Vehicle Gate Pass Management System",
-    version="1.0.0"
+    description="Department of Agriculture Region V - Vehicle Gate Pass Management System with Mobile Registration",
+    version="2.0.0"
 )
 
 # Create router
@@ -57,6 +66,20 @@ class VehicleType(str, Enum):
 class LogAction(str, Enum):
     ENTRY = "entry"
     EXIT = "exit"
+
+class RegistrationType(str, Enum):
+    PERMANENT = "permanent"
+    VISITOR = "visitor"
+
+class VisitDuration(str, Enum):
+    TWO_HOURS = "2_hours"
+    FOUR_HOURS = "4_hours"
+    EIGHT_HOURS = "8_hours"
+    ONE_DAY = "1_day"
+
+class Gender(str, Enum):
+    MALE = "male"
+    FEMALE = "female"
 
 # Base Model Classes
 class BaseEntity(BaseModel):
@@ -83,18 +106,52 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
+class DriverLicense(BaseEntity):
+    """Driver's License Information"""
+    last_name: str
+    first_name: str
+    middle_name: Optional[str] = None
+    gender: Gender
+    date_of_birth: str  # Format: YYYY-MM-DD
+    address: str
+    license_number: str
+    license_photo_path: Optional[str] = None  # Path to stored license photo
+
 class Vehicle(BaseEntity):
     plate_number: str
     vehicle_type: VehicleType
     owner_name: str
     department: Optional[str] = None
     is_active: bool = True
+    registration_type: RegistrationType = RegistrationType.PERMANENT
 
 class VehicleCreate(BaseModel):
     plate_number: str
     vehicle_type: VehicleType
     owner_name: str
     department: Optional[str] = None
+
+class VisitorRegistration(BaseEntity):
+    """Visitor vehicle registration"""
+    plate_number: str
+    vehicle_type: VehicleType
+    driver_license: DriverLicense
+    purpose_of_visit: str
+    department_visiting: Optional[str] = None
+    visit_duration: VisitDuration
+    expires_at: datetime
+    barcode_data: str
+    is_active: bool = True
+    registration_type: RegistrationType = RegistrationType.VISITOR
+
+class VisitorRegistrationCreate(BaseModel):
+    plate_number: str
+    vehicle_type: VehicleType
+    driver_license: Dict  # Will be converted to DriverLicense
+    purpose_of_visit: str
+    department_visiting: Optional[str] = None
+    visit_duration: VisitDuration
+    license_photo_base64: Optional[str] = None
 
 class EntryExitLog(BaseEntity):
     plate_number: str
@@ -105,6 +162,7 @@ class EntryExitLog(BaseEntity):
     is_inside: bool  # True if vehicle is currently inside
     entry_time: Optional[datetime] = None  # For tracking duration
     exit_time: Optional[datetime] = None
+    registration_type: Optional[RegistrationType] = None
 
 class EntryExitLogCreate(BaseModel):
     plate_number: str
@@ -121,6 +179,12 @@ class VehicleStatus(BaseModel):
     entry_time: Optional[datetime] = None
     duration_hours: Optional[float] = None
     is_overstaying: bool = False
+    registration_type: Optional[RegistrationType] = None
+
+class SyncData(BaseModel):
+    """Model for syncing offline data"""
+    visitor_registrations: List[Dict] = []
+    entry_exit_logs: List[Dict] = []
 
 # Service Classes (Business Logic Layer)
 class PasswordService:
@@ -175,6 +239,50 @@ class DateTimeService:
         end_time = DateTimeService.ensure_timezone_aware(end_time)
         duration = end_time - start_time
         return duration.total_seconds() / 3600
+    
+    @staticmethod
+    def calculate_expiry_time(duration: VisitDuration) -> datetime:
+        now = DateTimeService.now_utc()
+        duration_map = {
+            VisitDuration.TWO_HOURS: timedelta(hours=2),
+            VisitDuration.FOUR_HOURS: timedelta(hours=4),
+            VisitDuration.EIGHT_HOURS: timedelta(hours=8),
+            VisitDuration.ONE_DAY: timedelta(days=1)
+        }
+        return now + duration_map.get(duration, timedelta(hours=8))
+
+class FileService:
+    """Service for file operations"""
+    
+    @staticmethod
+    def save_license_photo(base64_data: str, filename: str) -> str:
+        """Save base64 image data to file"""
+        try:
+            # Remove data URL prefix if present
+            if base64_data.startswith('data:image'):
+                base64_data = base64_data.split(',')[1]
+            
+            # Decode base64 data
+            image_data = base64.b64decode(base64_data)
+            
+            # Create file path
+            file_path = Config.UPLOAD_DIR / filename
+            
+            # Save file
+            with open(file_path, 'wb') as f:
+                f.write(image_data)
+            
+            return str(file_path)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to save image: {str(e)}")
+
+class BarcodeService:
+    """Service for barcode generation"""
+    
+    @staticmethod
+    def generate_barcode_data(registration: VisitorRegistration) -> str:
+        """Generate barcode data for visitor registration"""
+        return f"VISITOR_{registration.plate_number}_{registration.id}"
 
 # Repository Classes (Data Access Layer)
 class BaseRepository(ABC):
@@ -225,6 +333,40 @@ class VehicleRepository(BaseRepository):
     
     async def find_all_active(self) -> List[dict]:
         cursor = self.collection.find({"is_active": True})
+        return await cursor.to_list(1000)
+
+class VisitorRegistrationRepository(BaseRepository):
+    """Visitor registration data access layer"""
+    
+    def __init__(self):
+        super().__init__("visitor_registrations")
+    
+    async def create(self, data: dict) -> dict:
+        result = await self.collection.insert_one(data)
+        return {"id": str(result.inserted_id), **data}
+    
+    async def find_by_id(self, entity_id: str) -> Optional[dict]:
+        return await self.collection.find_one({"id": entity_id})
+    
+    async def find_by_plate_number(self, plate_number: str) -> Optional[dict]:
+        return await self.collection.find_one({
+            "plate_number": plate_number, 
+            "is_active": True,
+            "expires_at": {"$gt": datetime.now(timezone.utc)}
+        })
+    
+    async def find_all_active(self) -> List[dict]:
+        cursor = self.collection.find({
+            "is_active": True,
+            "expires_at": {"$gt": datetime.now(timezone.utc)}
+        })
+        return await cursor.to_list(1000)
+    
+    async def find_expired(self) -> List[dict]:
+        cursor = self.collection.find({
+            "is_active": True,
+            "expires_at": {"$lte": datetime.now(timezone.utc)}
+        })
         return await cursor.to_list(1000)
 
 class EntryExitLogRepository(BaseRepository):
@@ -320,25 +462,106 @@ class VehicleService:
         vehicles = await self.vehicle_repo.find_all_active()
         return [Vehicle(**vehicle) for vehicle in vehicles]
     
-    async def get_vehicle_by_plate(self, plate_number: str) -> Vehicle:
+    async def get_vehicle_by_plate(self, plate_number: str) -> Optional[Vehicle]:
         vehicle = await self.vehicle_repo.find_by_plate_number(plate_number)
-        if not vehicle:
-            raise HTTPException(status_code=404, detail="Vehicle not found")
-        return Vehicle(**vehicle)
+        if vehicle:
+            return Vehicle(**vehicle)
+        return None
+
+class VisitorRegistrationService:
+    """Visitor registration service"""
+    
+    def __init__(self):
+        self.visitor_repo = VisitorRegistrationRepository()
+        self.vehicle_repo = VehicleRepository()
+        self.file_service = FileService()
+        self.datetime_service = DateTimeService()
+        self.barcode_service = BarcodeService()
+    
+    async def register_visitor(self, registration_data: VisitorRegistrationCreate) -> VisitorRegistration:
+        # Check if vehicle already exists as permanent registration
+        existing_vehicle = await self.vehicle_repo.find_by_plate_number(registration_data.plate_number)
+        if existing_vehicle and existing_vehicle.get('registration_type') == RegistrationType.PERMANENT:
+            raise HTTPException(status_code=400, detail="Vehicle already permanently registered")
+        
+        # Check if active visitor registration exists
+        existing_visitor = await self.visitor_repo.find_by_plate_number(registration_data.plate_number)
+        if existing_visitor:
+            raise HTTPException(status_code=400, detail="Active visitor registration already exists for this plate number")
+        
+        # Create driver license object
+        license_data = DriverLicense(**registration_data.driver_license)
+        
+        # Save license photo if provided
+        if registration_data.license_photo_base64:
+            filename = f"license_{license_data.license_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+            license_data.license_photo_path = self.file_service.save_license_photo(
+                registration_data.license_photo_base64, 
+                filename
+            )
+        
+        # Calculate expiry time
+        expires_at = self.datetime_service.calculate_expiry_time(registration_data.visit_duration)
+        
+        # Create visitor registration
+        visitor_registration = VisitorRegistration(
+            plate_number=registration_data.plate_number.upper(),
+            vehicle_type=registration_data.vehicle_type,
+            driver_license=license_data,
+            purpose_of_visit=registration_data.purpose_of_visit,
+            department_visiting=registration_data.department_visiting,
+            visit_duration=registration_data.visit_duration,
+            expires_at=expires_at,
+            barcode_data="",  # Will be set after creation
+            registration_type=RegistrationType.VISITOR
+        )
+        
+        # Generate barcode data
+        visitor_registration.barcode_data = self.barcode_service.generate_barcode_data(visitor_registration)
+        
+        # Save to database
+        await self.visitor_repo.create(visitor_registration.dict())
+        
+        return visitor_registration
+    
+    async def get_active_visitors(self) -> List[VisitorRegistration]:
+        visitors = await self.visitor_repo.find_all_active()
+        return [VisitorRegistration(**visitor) for visitor in visitors]
+    
+    async def get_visitor_by_plate(self, plate_number: str) -> Optional[VisitorRegistration]:
+        visitor = await self.visitor_repo.find_by_plate_number(plate_number)
+        if visitor:
+            return VisitorRegistration(**visitor)
+        return None
 
 class ScanService:
     """Vehicle scanning service"""
     
     def __init__(self):
         self.vehicle_repo = VehicleRepository()
+        self.visitor_repo = VisitorRegistrationRepository()
         self.log_repo = EntryExitLogRepository()
         self.datetime_service = DateTimeService()
     
     async def process_scan(self, scan_data: ScanInput, guard_username: str) -> Dict:
-        # Check if vehicle exists
+        # Check if vehicle exists (permanent or visitor)
         vehicle = await self.vehicle_repo.find_by_plate_number(scan_data.plate_number)
-        if not vehicle:
+        visitor = await self.visitor_repo.find_by_plate_number(scan_data.plate_number)
+        
+        if not vehicle and not visitor:
             raise HTTPException(status_code=404, detail="Vehicle not found in system")
+        
+        # Determine registration type and vehicle info
+        if visitor:
+            registration_type = RegistrationType.VISITOR
+            vehicle_info = {
+                "plate_number": visitor['plate_number'],
+                "vehicle_type": visitor['vehicle_type'],
+                "owner_name": f"{visitor['driver_license']['first_name']} {visitor['driver_license']['last_name']}"
+            }
+        else:
+            registration_type = RegistrationType.PERMANENT
+            vehicle_info = vehicle
         
         # Get latest log for this vehicle
         latest_log = await self.log_repo.find_latest_by_plate(scan_data.plate_number)
@@ -354,7 +577,8 @@ class ScanService:
             "scan_method": scan_data.scan_method,
             "guard_username": guard_username,
             "is_inside": not is_inside,
-            "timestamp": self.datetime_service.now_utc()
+            "timestamp": self.datetime_service.now_utc(),
+            "registration_type": registration_type
         }
         
         if action == LogAction.ENTRY:
@@ -367,17 +591,21 @@ class ScanService:
         log_obj = EntryExitLog(**log_data)
         await self.log_repo.create(log_obj.dict())
         
-        # Check for overstaying (private vehicles only)
-        overstaying_warning = None
-        if vehicle['vehicle_type'] == VehicleType.PRIVATE and action == LogAction.ENTRY:
-            overstaying_warning = "Timer started: 8 hours allowed for private vehicles"
+        # Check for warnings
+        warning = None
+        if registration_type == RegistrationType.VISITOR:
+            if action == LogAction.ENTRY:
+                warning = f"Visitor registration - Valid until {visitor['expires_at'].strftime('%Y-%m-%d %H:%M')}"
+        elif vehicle_info.get('vehicle_type') == VehicleType.PRIVATE and action == LogAction.ENTRY:
+            warning = "Timer started: 8 hours allowed for private vehicles"
         
         return {
             "message": f"Vehicle {action.value} recorded successfully",
             "action": action,
-            "vehicle": Vehicle(**vehicle),
+            "vehicle": vehicle_info,
+            "registration_type": registration_type.value,
             "timestamp": log_obj.timestamp,
-            "warning": overstaying_warning
+            "warning": warning
         }
 
 class DashboardService:
@@ -385,6 +613,7 @@ class DashboardService:
     
     def __init__(self):
         self.vehicle_repo = VehicleRepository()
+        self.visitor_repo = VisitorRegistrationRepository()
         self.log_repo = EntryExitLogRepository()
         self.datetime_service = DateTimeService()
     
@@ -406,27 +635,40 @@ class DashboardService:
         
         for item in inside_vehicles:
             log = item['latest_log']
-            vehicle = await self.vehicle_repo.find_by_plate_number(log['plate_number'])
             
-            if vehicle:
+            # Check both permanent vehicles and visitors
+            vehicle = await self.vehicle_repo.find_by_plate_number(log['plate_number'])
+            visitor = await self.visitor_repo.find_by_plate_number(log['plate_number'])
+            
+            vehicle_info = vehicle or visitor
+            
+            if vehicle_info:
                 entry_time = log.get('entry_time')
                 duration_hours = None
                 is_overstaying = False
+                registration_type = log.get('registration_type', RegistrationType.PERMANENT)
                 
                 if entry_time and isinstance(entry_time, datetime):
                     entry_time = self.datetime_service.ensure_timezone_aware(entry_time)
                     duration_hours = self.datetime_service.calculate_duration_hours(entry_time, current_time)
                     
                     # Check overstaying for private vehicles (8 hours limit)
-                    if vehicle['vehicle_type'] == VehicleType.PRIVATE and duration_hours > 8:
+                    if vehicle_info.get('vehicle_type') == VehicleType.PRIVATE and duration_hours > 8:
                         is_overstaying = True
+                    
+                    # Check overstaying for expired visitors
+                    if registration_type == RegistrationType.VISITOR and visitor:
+                        expires_at = visitor.get('expires_at')
+                        if expires_at and current_time > expires_at:
+                            is_overstaying = True
                 
                 status_list.append(VehicleStatus(
                     plate_number=log['plate_number'],
                     is_inside=True,
                     entry_time=entry_time,
                     duration_hours=duration_hours,
-                    is_overstaying=is_overstaying
+                    is_overstaying=is_overstaying,
+                    registration_type=registration_type
                 ))
         
         return status_list
@@ -435,8 +677,11 @@ class DashboardService:
         # Get today's logs count
         today_logs = await self.log_repo.count_today()
         
-        # Get total vehicles
+        # Get total permanent vehicles
         total_vehicles = len(await self.vehicle_repo.find_all_active())
+        
+        # Get active visitors
+        total_visitors = len(await self.visitor_repo.find_all_active())
         
         # Get vehicles currently inside
         vehicle_status = await self.get_vehicle_status()
@@ -448,15 +693,56 @@ class DashboardService:
         return {
             "today_entries_exits": today_logs,
             "total_vehicles": total_vehicles,
+            "total_visitors": total_visitors,
             "vehicles_inside": inside_count,
             "overstaying_vehicles": overstaying_count
+        }
+
+class SyncService:
+    """Data synchronization service for offline mobile app"""
+    
+    def __init__(self):
+        self.visitor_service = VisitorRegistrationService()
+        self.log_repo = EntryExitLogRepository()
+    
+    async def sync_offline_data(self, sync_data: SyncData) -> Dict:
+        """Sync data from mobile device when it comes back online"""
+        synced_registrations = 0
+        synced_logs = 0
+        errors = []
+        
+        # Sync visitor registrations
+        for registration_data in sync_data.visitor_registrations:
+            try:
+                registration_create = VisitorRegistrationCreate(**registration_data)
+                await self.visitor_service.register_visitor(registration_create)
+                synced_registrations += 1
+            except Exception as e:
+                errors.append(f"Registration sync error: {str(e)}")
+        
+        # Sync entry/exit logs
+        for log_data in sync_data.entry_exit_logs:
+            try:
+                log_obj = EntryExitLog(**log_data)
+                await self.log_repo.create(log_obj.dict())
+                synced_logs += 1
+            except Exception as e:
+                errors.append(f"Log sync error: {str(e)}")
+        
+        return {
+            "synced_registrations": synced_registrations,
+            "synced_logs": synced_logs,
+            "errors": errors,
+            "success": len(errors) == 0
         }
 
 # Initialize services
 auth_service = AuthService()
 vehicle_service = VehicleService()
+visitor_service = VisitorRegistrationService()
 scan_service = ScanService()
 dashboard_service = DashboardService()
+sync_service = SyncService()
 
 # Authentication dependency
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -484,6 +770,7 @@ async def login_user(login_data: UserLogin):
 async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     return current_user
 
+# Vehicle management routes
 @api_router.post("/vehicles", response_model=Vehicle)
 async def create_vehicle(vehicle_data: VehicleCreate, current_user: dict = Depends(get_current_user)):
     if current_user['role'] != UserRole.ADMIN:
@@ -496,8 +783,28 @@ async def get_vehicles(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/vehicles/{plate_number}", response_model=Vehicle)
 async def get_vehicle_by_plate(plate_number: str, current_user: dict = Depends(get_current_user)):
-    return await vehicle_service.get_vehicle_by_plate(plate_number)
+    vehicle = await vehicle_service.get_vehicle_by_plate(plate_number)
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    return vehicle
 
+# Visitor registration routes
+@api_router.post("/visitor-registration", response_model=VisitorRegistration)
+async def register_visitor(registration_data: VisitorRegistrationCreate, current_user: dict = Depends(get_current_user)):
+    return await visitor_service.register_visitor(registration_data)
+
+@api_router.get("/visitors", response_model=List[VisitorRegistration])
+async def get_active_visitors(current_user: dict = Depends(get_current_user)):
+    return await visitor_service.get_active_visitors()
+
+@api_router.get("/visitors/{plate_number}", response_model=VisitorRegistration)
+async def get_visitor_by_plate(plate_number: str, current_user: dict = Depends(get_current_user)):
+    visitor = await visitor_service.get_visitor_by_plate(plate_number)
+    if not visitor:
+        raise HTTPException(status_code=404, detail="Visitor registration not found")
+    return visitor
+
+# Scanning routes
 @api_router.post("/scan")
 async def process_scan(scan_data: ScanInput, current_user: dict = Depends(get_current_user)):
     return await scan_service.process_scan(scan_data, current_user['username'])
@@ -512,6 +819,7 @@ async def get_entry_exit_logs(
     logs = await log_repo.find_all(limit, plate_number)
     return [EntryExitLog(**log) for log in logs]
 
+# Dashboard routes
 @api_router.get("/vehicle-status")
 async def get_vehicles_status(current_user: dict = Depends(get_current_user)):
     return await dashboard_service.get_vehicle_status()
@@ -520,8 +828,41 @@ async def get_vehicles_status(current_user: dict = Depends(get_current_user)):
 async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     return await dashboard_service.get_dashboard_stats()
 
+# Mobile/PWA specific routes
+@api_router.post("/sync")
+async def sync_offline_data(sync_data: SyncData, current_user: dict = Depends(get_current_user)):
+    """Sync offline data when mobile device comes back online"""
+    return await sync_service.sync_offline_data(sync_data)
+
+@api_router.get("/barcode/{registration_id}")
+async def generate_barcode_pdf(registration_id: str, current_user: dict = Depends(get_current_user)):
+    """Generate printable barcode PDF for visitor registration"""
+    # This would integrate with a barcode library to generate PDF
+    # For now, return the barcode data
+    visitor = await visitor_service.visitor_repo.find_by_id(registration_id)
+    if not visitor:
+        raise HTTPException(status_code=404, detail="Visitor registration not found")
+    
+    return {
+        "barcode_data": visitor['barcode_data'],
+        "plate_number": visitor['plate_number'],
+        "expires_at": visitor['expires_at']
+    }
+
+# File serving routes
+@api_router.get("/license-photo/{filename}")
+async def get_license_photo(filename: str, current_user: dict = Depends(get_current_user)):
+    """Serve license photo files"""
+    file_path = Config.UPLOAD_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Photo not found")
+    return FileResponse(file_path)
+
 # Include router
 app.include_router(api_router)
+
+# Serve uploaded files
+app.mount("/uploads", StaticFiles(directory=str(Config.UPLOAD_DIR)), name="uploads")
 
 # Add middleware
 app.add_middleware(
