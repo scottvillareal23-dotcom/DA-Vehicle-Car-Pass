@@ -666,6 +666,8 @@ const MobileRegistration = () => {
 
   const [message, setMessage] = useState('');
   const [registrationResult, setRegistrationResult] = useState(null);
+  const [ocrDebugText, setOcrDebugText] = useState('');
+  const [showOcrDebug, setShowOcrDebug] = useState(false);
 
   const handleCameraCapture = async (event) => {
     const file = event.target.files[0];
