@@ -943,11 +943,45 @@ const MobileRegistration = () => {
             )}
 
             {message && (
-              <Alert className={`mt-4 ${message.type === 'error' ? 'border-red-200' : 'border-green-200'}`}>
-                <AlertDescription className={message.type === 'error' ? 'text-red-700' : 'text-green-700'}>
+              <Alert className={`mt-4 ${
+                message.type === 'error' ? 'border-red-200' : 
+                message.type === 'warning' ? 'border-orange-200' : 
+                'border-green-200'
+              }`}>
+                <AlertDescription className={
+                  message.type === 'error' ? 'text-red-700' : 
+                  message.type === 'warning' ? 'text-orange-700' : 
+                  'text-green-700'
+                }>
                   {message.text}
                 </AlertDescription>
               </Alert>
+            )}
+
+            {/* OCR Debug Panel */}
+            {ocrDebugText && (
+              <div className="mt-4">
+                <Button
+                  onClick={() => setShowOcrDebug(!showOcrDebug)}
+                  variant="outline"
+                  size="sm"
+                  className="w-full mb-2"
+                >
+                  {showOcrDebug ? 'Hide' : 'Show'} What OCR Read
+                </Button>
+                
+                {showOcrDebug && (
+                  <div className="bg-gray-100 border rounded-lg p-3 text-xs">
+                    <Label className="text-gray-600 font-medium">Raw OCR Text:</Label>
+                    <pre className="mt-1 whitespace-pre-wrap text-gray-800 max-h-32 overflow-y-auto">
+                      {ocrDebugText}
+                    </pre>
+                    <p className="mt-2 text-gray-500 text-xs">
+                      This shows exactly what the OCR detected. Use this to manually input correct information.
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
 
             {message?.type === 'error' && retryCount < 2 && (
