@@ -38,7 +38,12 @@ import {
   XCircle,
   Smartphone,
   Wifi,
-  WifiOff
+  WifiOff,
+  Eye,
+  Calendar,
+  MapPin,
+  Phone,
+  CreditCard
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
