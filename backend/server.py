@@ -411,13 +411,15 @@ class EntryExitLogRepository(BaseRepository):
         return {"id": str(result.inserted_id), **data}
     
     async def find_by_id(self, entity_id: str) -> Optional[dict]:
-        return await self.collection.find_one({"id": entity_id})
+        doc = await self.collection.find_one({"id": entity_id})
+        return convert_objectid_to_str(doc)
     
     async def find_latest_by_plate(self, plate_number: str) -> Optional[dict]:
-        return await self.collection.find_one(
+        doc = await self.collection.find_one(
             {"plate_number": plate_number},
             sort=[("timestamp", -1)]
         )
+        return convert_objectid_to_str(doc)
     
     async def find_all(self, limit: int = 50, plate_number: Optional[str] = None) -> List[dict]:
         query = {}
@@ -425,7 +427,8 @@ class EntryExitLogRepository(BaseRepository):
             query["plate_number"] = plate_number
         
         cursor = self.collection.find(query).sort("timestamp", -1).limit(limit)
-        return await cursor.to_list(limit)
+        docs = await cursor.to_list(limit)
+        return [convert_objectid_to_str(doc) for doc in docs]
     
     async def count_today(self) -> int:
         today = DateTimeService.now_utc().replace(hour=0, minute=0, second=0, microsecond=0)
