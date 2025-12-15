@@ -139,17 +139,25 @@ class OfflineStorageManager {
   }
 }
 
-// OCR Service
+// OCR Service - Enhanced for Philippine Driver's License
 class OCRService {
   static async extractLicenseData(imageFile) {
     try {
+      console.log('Starting OCR processing...');
+      
       const result = await Tesseract.recognize(imageFile, 'eng', {
-        logger: m => console.log(m)
+        logger: m => {
+          console.log('OCR Progress:', m);
+          if (m.status === 'recognizing text') {
+            console.log('OCR Progress:', Math.round(m.progress * 100) + '%');
+          }
+        }
       });
       
       const text = result.data.text;
+      console.log('OCR Raw Text:', text);
       
-      // Parse license data using regex patterns
+      // Parse license data using enhanced patterns for Philippine licenses
       const licenseData = {
         license_number: this.extractLicenseNumber(text),
         last_name: this.extractLastName(text),
@@ -160,12 +168,19 @@ class OCRService {
         gender: this.extractGender(text)
       };
       
+      console.log('Extracted License Data:', licenseData);
+      
+      // Check if we extracted meaningful data
+      const hasData = Object.values(licenseData).some(value => value && value.trim().length > 0);
+      
       return {
-        success: true,
+        success: hasData,
         data: licenseData,
-        confidence: result.data.confidence
+        confidence: result.data.confidence,
+        rawText: text
       };
     } catch (error) {
+      console.error('OCR Error:', error);
       return {
         success: false,
         error: error.message
@@ -174,98 +189,191 @@ class OCRService {
   }
 
   static extractLicenseNumber(text) {
+    // Enhanced patterns for Philippine driver's license numbers
     const patterns = [
-      /LICENSE?\s*NO\.?\s*:?\s*([A-Z0-9\-]{8,15})/i,
-      /LIC\.?\s*NO\.?\s*:?\s*([A-Z0-9\-]{8,15})/i,
-      /([A-Z0-9]{2,3}-\d{2}-\d{6})/
+      // Standard Philippine format: A00-00-000000
+      /([A-Z]\d{2}-\d{2}-\d{6})/g,
+      // Alternative formats
+      /LICENSE\s*NO\.?\s*:?\s*([A-Z0-9\-]{8,15})/gi,
+      /LIC\.?\s*NO\.?\s*:?\s*([A-Z0-9\-]{8,15})/gi,
+      /NO\.?\s*([A-Z]\d{2}-\d{2}-\d{6})/gi,
+      // Any sequence that looks like license format
+      /([A-Z]\d{2}\s*-?\s*\d{2}\s*-?\s*\d{6})/gi,
+      // Backup patterns
+      /([A-Z0-9]{3,4}[-\s]\d{2}[-\s]\d{6})/gi
     ];
     
     for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match) return match[1].replace(/\s+/g, '');
+      const matches = text.match(pattern);
+      if (matches) {
+        for (const match of matches) {
+          const cleaned = match.replace(/[^A-Z0-9\-]/g, '');
+          if (cleaned.length >= 8) {
+            console.log('Found license number:', cleaned);
+            return cleaned;
+          }
+        }
+      }
     }
     return '';
   }
 
   static extractLastName(text) {
+    // Enhanced patterns for Philippine names
     const patterns = [
-      /LAST\s*NAME\s*:?\s*([A-Z\s]+)/i,
-      /SURNAME\s*:?\s*([A-Z\s]+)/i,
-      /LN\s*:?\s*([A-Z\s]+)/i
+      // Direct patterns
+      /SURNAME\s*:?\s*([A-Z][A-Z\s]{2,30})/gi,
+      /LAST\s*NAME\s*:?\s*([A-Z][A-Z\s]{2,30})/gi,
+      /APELYIDO\s*:?\s*([A-Z][A-Z\s]{2,30})/gi,
+      // Pattern before comma (common in Filipino names)
+      /^([A-Z][A-Z\s]{2,30})\s*,/gmi,
+      // After specific keywords
+      /4b?\s*([A-Z][A-Z\s]{2,30})/gi,
+      /RESTRICTION\s*CODE[^A-Z]*([A-Z][A-Z\s]{2,30})/gi
     ];
     
     for (const pattern of patterns) {
       const match = text.match(pattern);
-      if (match) return match[1].trim();
+      if (match && match[1]) {
+        const name = match[1].trim();
+        if (name.length > 2 && name.length < 30) {
+          console.log('Found last name:', name);
+          return name;
+        }
+      }
     }
     return '';
   }
 
   static extractFirstName(text) {
+    // Enhanced patterns for Philippine first names
     const patterns = [
-      /FIRST\s*NAME\s*:?\s*([A-Z\s]+)/i,
-      /GIVEN\s*NAME\s*:?\s*([A-Z\s]+)/i,
-      /FN\s*:?\s*([A-Z\s]+)/i
+      /FIRST\s*NAME\s*:?\s*([A-Z][A-Z\s]{2,30})/gi,
+      /GIVEN\s*NAME\s*:?\s*([A-Z][A-Z\s]{2,30})/gi,
+      /PANGALAN\s*:?\s*([A-Z][A-Z\s]{2,30})/gi,
+      // After comma (Filipino name format: LASTNAME, FIRSTNAME)
+      /,\s*([A-Z][A-Z\s]{2,30})/gi,
+      // Between numbers and letters
+      /\d+[A-Z]*\s+([A-Z][A-Z\s]{2,25})\s+[A-Z]/gi
     ];
     
     for (const pattern of patterns) {
       const match = text.match(pattern);
-      if (match) return match[1].trim();
+      if (match && match[1]) {
+        const name = match[1].trim();
+        if (name.length > 2 && name.length < 30 && !name.includes('MALE') && !name.includes('FEMALE')) {
+          console.log('Found first name:', name);
+          return name;
+        }
+      }
     }
     return '';
   }
 
   static extractMiddleName(text) {
     const patterns = [
-      /MIDDLE\s*NAME\s*:?\s*([A-Z\s]+)/i,
-      /MN\s*:?\s*([A-Z\s]+)/i
+      /MIDDLE\s*NAME\s*:?\s*([A-Z][A-Z\s]{1,20})/gi,
+      /M\.?I\.?\s*([A-Z][A-Z\s]{1,20})/gi,
+      // Between two names pattern
+      /([A-Z]+)\s+([A-Z])\s+([A-Z]+)/gi
     ];
     
     for (const pattern of patterns) {
       const match = text.match(pattern);
-      if (match) return match[1].trim();
+      if (match && match[1]) {
+        const name = match[1].trim();
+        if (name.length >= 1 && name.length < 20) {
+          console.log('Found middle name:', name);
+          return name;
+        }
+      }
     }
     return '';
   }
 
   static extractDateOfBirth(text) {
+    // Enhanced date patterns for Philippine format
     const patterns = [
-      /DOB\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i,
-      /DATE\s*OF\s*BIRTH\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i,
-      /BIRTH\s*DATE\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i,
-      /(\d{2}\/\d{2}\/\d{4})/
+      // MM/DD/YYYY format
+      /DOB\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi,
+      /BIRTH\s*DATE\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi,
+      /DATE\s*OF\s*BIRTH\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi,
+      // DD/MM/YYYY format
+      /(\d{1,2}\/\d{1,2}\/\d{4})/gi,
+      // MM-DD-YYYY format
+      /(\d{1,2}-\d{1,2}-\d{4})/gi,
+      // YYYY format (just year)
+      /19\d{2}|20\d{2}/gi
     ];
     
     for (const pattern of patterns) {
       const match = text.match(pattern);
-      if (match) {
-        // Convert MM/DD/YYYY to YYYY-MM-DD
-        const [month, day, year] = match[1].split('/');
-        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      if (match && match[0]) {
+        const dateStr = match[0];
+        try {
+          // Try to parse and convert to YYYY-MM-DD format
+          if (dateStr.includes('/') || dateStr.includes('-')) {
+            const separator = dateStr.includes('/') ? '/' : '-';
+            const parts = dateStr.split(separator);
+            if (parts.length === 3) {
+              const [part1, part2, part3] = parts;
+              // Assume MM/DD/YYYY format for now
+              const year = part3.length === 4 ? part3 : `20${part3}`;
+              const month = part1.padStart(2, '0');
+              const day = part2.padStart(2, '0');
+              const formatted = `${year}-${month}-${day}`;
+              console.log('Found date of birth:', formatted);
+              return formatted;
+            }
+          }
+        } catch (error) {
+          console.error('Date parsing error:', error);
+        }
       }
     }
     return '';
   }
 
   static extractAddress(text) {
+    // Enhanced address patterns for Philippine addresses
     const patterns = [
-      /ADDRESS\s*:?\s*([A-Z0-9\s,.-]+)/i,
-      /ADDR\s*:?\s*([A-Z0-9\s,.-]+)/i
+      /ADDRESS\s*:?\s*([A-Z0-9\s,.#\-]{10,100})/gi,
+      /TIRAHAN\s*:?\s*([A-Z0-9\s,.#\-]{10,100})/gi,
+      // Look for common Philippine address patterns
+      /([A-Z0-9\s,.#\-]*(?:STREET|ST|AVENUE|AVE|ROAD|RD|BARANGAY|BRGY|CITY|PROVINCE)[A-Z0-9\s,.#\-]*)/gi,
+      // Multi-line address
+      /\d+\s+[A-Z][A-Z0-9\s,.#\-]{10,80}/gi
     ];
     
     for (const pattern of patterns) {
       const match = text.match(pattern);
-      if (match) return match[1].trim();
+      if (match && match[1]) {
+        const address = match[1].trim();
+        if (address.length > 10 && address.length < 100) {
+          console.log('Found address:', address);
+          return address;
+        }
+      }
     }
     return '';
   }
 
   static extractGender(text) {
-    const malePatterns = /\b(MALE|M)\b/i;
-    const femalePatterns = /\b(FEMALE|F)\b/i;
+    // Enhanced gender detection
+    const malePatterns = /\b(MALE|M|LALAKI)\b/gi;
+    const femalePatterns = /\b(FEMALE|F|BABAE)\b/gi;
     
-    if (malePatterns.test(text)) return 'male';
-    if (femalePatterns.test(text)) return 'female';
+    const maleMatch = text.match(malePatterns);
+    const femaleMatch = text.match(femalePatterns);
+    
+    if (maleMatch) {
+      console.log('Found gender: male');
+      return 'male';
+    }
+    if (femaleMatch) {
+      console.log('Found gender: female');
+      return 'female';
+    }
     return '';
   }
 }
