@@ -478,6 +478,18 @@ def main():
     tester.test_scan_private_vehicle()
     tester.test_scan_nonexistent_vehicle()
     
+    # Visitor Registration Tests
+    print("\n👥 VISITOR REGISTRATION TESTS")
+    tester.test_visitor_registration()
+    tester.test_get_active_visitors()
+    tester.test_get_visitor_by_plate()
+    tester.test_scan_visitor_vehicle()
+    tester.test_duplicate_visitor_registration()
+    
+    # Offline Sync Tests
+    print("\n🔄 OFFLINE SYNC TESTS")
+    tester.test_sync_offline_data()
+    
     # Logging and Status Tests
     print("\n📊 LOGGING AND STATUS TESTS")
     tester.test_get_logs()
