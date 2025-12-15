@@ -662,7 +662,9 @@ class DashboardService:
             {"$match": {"latest_log.is_inside": True}}
         ]
         
-        inside_vehicles = await self.log_repo.collection.aggregate(pipeline).to_list(1000)
+        cursor = self.log_repo.collection.aggregate(pipeline)
+        inside_vehicles_raw = await cursor.to_list(1000)
+        inside_vehicles = [convert_objectid_to_str(doc) for doc in inside_vehicles_raw]
         
         status_list = []
         current_time = self.datetime_service.now_utc()
