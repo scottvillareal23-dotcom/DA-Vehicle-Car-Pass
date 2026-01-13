@@ -2425,13 +2425,14 @@ const DatabaseViewer = () => {
     </div>
   );
 };
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="status">Vehicle Status</TabsTrigger>
             <TabsTrigger value="logs">Entry/Exit Logs</TabsTrigger>
             <TabsTrigger value="visitors">Visitors</TabsTrigger>
             <TabsTrigger value="vehicles">Manage Vehicles</TabsTrigger>
             <TabsTrigger value="add-vehicle">Add Vehicle</TabsTrigger>
             <TabsTrigger value="mobile">Mobile Tools</TabsTrigger>
+            <TabsTrigger value="database">Database</TabsTrigger>
           </TabsList>
 
           <TabsContent value="status">
