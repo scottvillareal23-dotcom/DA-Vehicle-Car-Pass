@@ -898,7 +898,158 @@ async def get_license_photo(filename: str, current_user: dict = Depends(get_curr
         raise HTTPException(status_code=404, detail="Photo not found")
     return FileResponse(file_path)
 
-# Include router
+# Database management routes (Admin only)
+@api_router.get("/database/collections")
+async def get_database_collections(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    collections_info = {}
+    
+    # Get collection stats
+    collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs']
+    
+    for collection_name in collections:
+        collection = db[collection_name]
+        count = await collection.count_documents({})
+        
+        # Get sample document for structure
+        sample_doc = await collection.find_one({})
+        
+        collections_info[collection_name] = {
+            "name": collection_name,
+            "count": count,
+            "sample_structure": list(sample_doc.keys()) if sample_doc else []
+        }
+    
+    return collections_info
+
+@api_router.get("/database/{collection_name}")
+async def get_collection_data(
+    collection_name: str, 
+    skip: int = 0, 
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user['role'] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    allowed_collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs']
+    if collection_name not in allowed_collections:
+        raise HTTPException(status_code=400, detail="Invalid collection name")
+    
+    collection = db[collection_name]
+    
+    # Get documents with pagination
+    cursor = collection.find({}).skip(skip).limit(limit).sort("created_at", -1)
+    documents = await cursor.to_list(limit)
+    
+    # Convert ObjectId to string for JSON serialization
+    for doc in documents:
+        if '_id' in doc:
+            doc['_id'] = str(doc['_id'])
+    
+    # Get total count
+    total_count = await collection.count_documents({})
+    
+    return {
+        "collection": collection_name,
+        "documents": documents,
+        "total": total_count,
+        "skip": skip,
+        "limit": limit
+    }
+
+@api_router.put("/database/{collection_name}/{document_id}")
+async def update_document(
+    collection_name: str,
+    document_id: str,
+    document_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user['role'] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    allowed_collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs']
+    if collection_name not in allowed_collections:
+        raise HTTPException(status_code=400, detail="Invalid collection name")
+    
+    collection = db[collection_name]
+    
+    # Remove _id from update data if present
+    update_data = {k: v for k, v in document_data.items() if k != '_id'}
+    
+    # Update document
+    result = await collection.update_one(
+        {"id": document_id},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    return {"message": "Document updated successfully", "modified_count": result.modified_count}
+
+@api_router.delete("/database/{collection_name}/{document_id}")
+async def delete_document(
+    collection_name: str,
+    document_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user['role'] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    allowed_collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs']
+    if collection_name not in allowed_collections:
+        raise HTTPException(status_code=400, detail="Invalid collection name")
+    
+    # Don't allow deleting the current admin user
+    if collection_name == 'users':
+        user_to_delete = await db.users.find_one({"id": document_id})
+        if user_to_delete and user_to_delete['username'] == current_user['username']:
+            raise HTTPException(status_code=400, detail="Cannot delete your own user account")
+    
+    collection = db[collection_name]
+    
+    # Delete document
+    result = await collection.delete_one({"id": document_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    return {"message": "Document deleted successfully", "deleted_count": result.deleted_count}
+
+@api_router.post("/database/{collection_name}")
+async def create_document(
+    collection_name: str,
+    document_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user['role'] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    allowed_collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs']
+    if collection_name not in allowed_collections:
+        raise HTTPException(status_code=400, detail="Invalid collection name")
+    
+    collection = db[collection_name]
+    
+    # Add required fields
+    document_data['id'] = str(uuid.uuid4())
+    document_data['created_at'] = DateTimeService.now_utc()
+    
+    # Special handling for users (hash password)
+    if collection_name == 'users' and 'password' in document_data:
+        document_data['password'] = PasswordService.hash_password(document_data['password'])
+    
+    # Insert document
+    result = await collection.insert_one(document_data)
+    
+    return {
+        "message": "Document created successfully",
+        "id": document_data['id'],
+        "inserted_id": str(result.inserted_id)
+    }
 app.include_router(api_router)
 
 # Serve uploaded files
