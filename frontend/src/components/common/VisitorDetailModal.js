@@ -115,7 +115,7 @@ const VisitorDetailModal = ({ visitor, isOpen, onClose }) => {
 
                 {/* Right column - License Photo */}
                 <div>
-                  <Label className="text-sm font-medium text-gray-600">Driver's License Photo</Label>
+                  <Label className="text-sm font-medium text-gray-600">Driver&apos;s License Photo</Label>
                   <div className="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-4">
                     {visitor.driver_license.license_photo_path ? (
                       <div className="text-center">
