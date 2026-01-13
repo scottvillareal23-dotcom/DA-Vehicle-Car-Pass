@@ -2743,6 +2743,9 @@ const DatabaseViewer = () => {
               </CardContent>
             </Card>
           </TabsContent>
+          <TabsContent value="database">
+            <DatabaseViewer />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
