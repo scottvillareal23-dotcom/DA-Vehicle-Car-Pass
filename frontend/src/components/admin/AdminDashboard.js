@@ -61,7 +61,7 @@ const AdminDashboard = () => {
   /**
    * Fetch all dashboard data in parallel
    */
-  const fetchDashboardData = React.useCallback(async () => {
+  const fetchDashboardData = async () => {
     try {
       const [statsRes, vehiclesRes, visitorsRes, logsRes, statusRes] = await Promise.all([
         axios.get(`${API}/dashboard-stats`),
@@ -79,14 +79,24 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     }
-  }, []);
+  };
 
   // Fetch dashboard data on mount and periodically
   useEffect(() => {
-    fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 10000);
+    // Initial fetch
+    const loadData = async () => {
+      await fetchDashboardData();
+    };
+    loadData();
+    
+    // Set up periodic refresh
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 10000);
+    
     return () => clearInterval(interval);
-  }, [fetchDashboardData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * Handle new vehicle creation
