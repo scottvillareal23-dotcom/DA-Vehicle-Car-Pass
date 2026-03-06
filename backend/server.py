@@ -653,13 +653,14 @@ class DashboardService:
     
     async def get_vehicle_status(self) -> List[VehicleStatus]:
         # Get all vehicles currently inside using aggregation
+        # A vehicle is inside if its latest log action is 'entry'
         pipeline = [
             {"$sort": {"timestamp": -1}},
             {"$group": {
                 "_id": "$plate_number",
                 "latest_log": {"$first": "$$ROOT"}
             }},
-            {"$match": {"latest_log.is_inside": True}}
+            {"$match": {"latest_log.action": "entry"}}
         ]
         
         cursor = self.log_repo.collection.aggregate(pipeline)
