@@ -10,15 +10,15 @@
   "categories": ["government", "utilities", "productivity"],
   "icons": [
     {
-      "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Department_of_Agriculture_of_the_Philippines.svg/192x192px-Department_of_Agriculture_of_the_Philippines.svg.png",
+      "src": "/da-logo.jpg",
       "sizes": "192x192",
-      "type": "image/png",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     },
     {
-      "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Department_of_Agriculture_of_the_Philippines.svg/512x512px-Department_of_Agriculture_of_the_Philippines.svg.png",
+      "src": "/da-logo.jpg",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/jpeg",
       "purpose": "any"
     }
   ],
@@ -32,7 +32,7 @@
       "url": "/guard",
       "icons": [
         {
-          "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Department_of_Agriculture_of_the_Philippines.svg/96x96px-Department_of_Agriculture_of_the_Philippines.svg.png",
+          "src": "/da-logo.jpg",
           "sizes": "96x96"
         }
       ]
@@ -44,7 +44,7 @@
       "url": "/register",
       "icons": [
         {
-          "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Department_of_Agriculture_of_the_Philippines.svg/96x96px-Department_of_Agriculture_of_the_Philippines.svg.png",
+          "src": "/da-logo.jpg",
           "sizes": "96x96"
         }
       ]
