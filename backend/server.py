@@ -181,7 +181,7 @@ class EntryExitLog(BaseEntity):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     guard_username: str
     scan_method: str  # "scanner" or "manual"
-    is_inside: bool  # True if vehicle is currently inside
+    is_inside: bool = False  # True if vehicle is currently inside (default False)
     entry_time: Optional[datetime] = None  # For tracking duration
     exit_time: Optional[datetime] = None
     registration_type: Optional[RegistrationType] = None
