@@ -93,3 +93,4 @@ frontend/node_modules/.cache/default-development/10.pack
 *.env.*
 
 DA RFO 5 VEHICLE PASS REGISTRATION (Responses).csv
+backend/db_dump.json

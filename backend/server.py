@@ -208,6 +208,103 @@ class SyncData(BaseModel):
     visitor_registrations: List[Dict] = []
     entry_exit_logs: List[Dict] = []
 
+class VehiclePassApplication(BaseEntity):
+    """Comprehensive vehicle pass registration model representing all CSV fields"""
+    timestamp: str
+    email_address: str
+    column_2: Optional[str] = None
+    first_name: str
+    middle_name: Optional[str] = None
+    family_name: str
+    name_extension: Optional[str] = None
+    classification: str
+    full_name_of_da_rfo_5_employee: Optional[str] = None
+    status_of_employment_of_spouse: Optional[str] = None
+    official_station_of_spouse: Optional[str] = None
+    copy_of_marriage_certificate: Optional[str] = None
+    valid_proof_of_identification: Optional[str] = None
+    relationship_to_the_employee: Optional[str] = None
+    status_of_employee_related_to: Optional[str] = None
+    official_station_of_relative_employee: Optional[str] = None
+    status_of_employment: Optional[str] = None
+    official_station_of_employee: Optional[str] = None
+    office_or_agency_related_to: Optional[str] = None
+    position_designation: Optional[str] = None
+    office_address: Optional[str] = None
+    valid_office_identification_or_government_issued_id: Optional[str] = None
+    business_within_da_rfo_5_compound: Optional[str] = None
+    address: str
+    mobile_number: str
+    vehicle_type: str
+    brand: str
+    plate_number: str
+    color: str
+    or_number: str
+    copy_of_or: Optional[str] = None
+    cr_no: str
+    copy_of_cr: Optional[str] = None
+    front_of_vehicle: Optional[str] = None
+    back_of_vehicle: Optional[str] = None
+    left_side_of_vehicle: Optional[str] = None
+    right_side_of_vehicle: Optional[str] = None
+    driver_first_name: str
+    driver_middle_name: Optional[str] = None
+    driver_family_name: str
+    driver_name_extension: Optional[str] = None
+    license_status: str
+    restriction: Optional[str] = None
+    license_number: str
+    expiration: str
+    column_49: Optional[str] = None
+
+class VehiclePassApplicationCreate(BaseModel):
+    timestamp: str
+    email_address: str
+    column_2: Optional[str] = None
+    first_name: str
+    middle_name: Optional[str] = None
+    family_name: str
+    name_extension: Optional[str] = None
+    classification: str
+    full_name_of_da_rfo_5_employee: Optional[str] = None
+    status_of_employment_of_spouse: Optional[str] = None
+    official_station_of_spouse: Optional[str] = None
+    copy_of_marriage_certificate: Optional[str] = None
+    valid_proof_of_identification: Optional[str] = None
+    relationship_to_the_employee: Optional[str] = None
+    status_of_employee_related_to: Optional[str] = None
+    official_station_of_relative_employee: Optional[str] = None
+    status_of_employment: Optional[str] = None
+    official_station_of_employee: Optional[str] = None
+    office_or_agency_related_to: Optional[str] = None
+    position_designation: Optional[str] = None
+    office_address: Optional[str] = None
+    valid_office_identification_or_government_issued_id: Optional[str] = None
+    business_within_da_rfo_5_compound: Optional[str] = None
+    address: str
+    mobile_number: str
+    vehicle_type: str
+    brand: str
+    plate_number: str
+    color: str
+    or_number: str
+    copy_of_or: Optional[str] = None
+    cr_no: str
+    copy_of_cr: Optional[str] = None
+    front_of_vehicle: Optional[str] = None
+    back_of_vehicle: Optional[str] = None
+    left_side_of_vehicle: Optional[str] = None
+    right_side_of_vehicle: Optional[str] = None
+    driver_first_name: str
+    driver_middle_name: Optional[str] = None
+    driver_family_name: str
+    driver_name_extension: Optional[str] = None
+    license_status: str
+    restriction: Optional[str] = None
+    license_number: str
+    expiration: str
+    column_49: Optional[str] = None
+
 # Service Classes (Business Logic Layer)
 class PasswordService:
     """Service for password hashing and verification"""
@@ -436,6 +533,30 @@ class EntryExitLogRepository(BaseRepository):
         return await self.collection.count_documents({
             "timestamp": {"$gte": today, "$lt": tomorrow}
         })
+
+class VehiclePassApplicationRepository(BaseRepository):
+    """Vehicle pass application data access layer"""
+    
+    def __init__(self):
+        super().__init__("vehicle_pass_applications")
+    
+    async def create(self, data: dict) -> dict:
+        result = await self.collection.insert_one(data)
+        return {"id": str(result.inserted_id), **data}
+    
+    async def find_by_id(self, entity_id: str) -> Optional[dict]:
+        doc = await self.collection.find_one({"id": entity_id})
+        return convert_objectid_to_str(doc)
+        
+    async def find_all(self) -> List[dict]:
+        cursor = self.collection.find()
+        docs = await cursor.to_list(1000)
+        return [convert_objectid_to_str(doc) for doc in docs]
+    
+    async def find_by_plate(self, plate_number: str) -> List[dict]:
+        cursor = self.collection.find({"plate_number": {"$regex": f"^{plate_number}$", "$options": "i"}})
+        docs = await cursor.to_list(1000)
+        return [convert_objectid_to_str(doc) for doc in docs]
 
 # Service Classes (Business Logic)
 class AuthService:
@@ -812,6 +933,20 @@ class SyncService:
             "success": len(errors) == 0
         }
 
+class VehiclePassApplicationService:
+    """Vehicle pass application service logic"""
+    def __init__(self):
+        self.app_repo = VehiclePassApplicationRepository()
+        
+    async def create_application(self, data: VehiclePassApplicationCreate) -> VehiclePassApplication:
+        app_obj = VehiclePassApplication(**data.dict())
+        await self.app_repo.create(app_obj.dict())
+        return app_obj
+
+    async def get_all(self) -> List[VehiclePassApplication]:
+        apps = await self.app_repo.find_all()
+        return [VehiclePassApplication(**app) for app in apps]
+
 # Initialize services
 auth_service = AuthService()
 vehicle_service = VehicleService()
@@ -819,6 +954,7 @@ visitor_service = VisitorRegistrationService()
 scan_service = ScanService()
 dashboard_service = DashboardService()
 sync_service = SyncService()
+vehicle_pass_app_service = VehiclePassApplicationService()
 
 # Authentication dependency
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -943,7 +1079,7 @@ async def get_database_collections(current_user: dict = Depends(get_current_user
     collections_info = {}
     
     # Get collection stats
-    collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs']
+    collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs', 'vehicle_pass_applications']
     
     for collection_name in collections:
         collection = db[collection_name]
@@ -970,7 +1106,7 @@ async def get_collection_data(
     if current_user['role'] != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin access required")
     
-    allowed_collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs']
+    allowed_collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs', 'vehicle_pass_applications']
     if collection_name not in allowed_collections:
         raise HTTPException(status_code=400, detail="Invalid collection name")
     
@@ -1006,7 +1142,7 @@ async def update_document(
     if current_user['role'] != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin access required")
     
-    allowed_collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs']
+    allowed_collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs', 'vehicle_pass_applications']
     if collection_name not in allowed_collections:
         raise HTTPException(status_code=400, detail="Invalid collection name")
     
@@ -1035,7 +1171,7 @@ async def delete_document(
     if current_user['role'] != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin access required")
     
-    allowed_collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs']
+    allowed_collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs', 'vehicle_pass_applications']
     if collection_name not in allowed_collections:
         raise HTTPException(status_code=400, detail="Invalid collection name")
     
@@ -1064,7 +1200,7 @@ async def create_document(
     if current_user['role'] != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin access required")
     
-    allowed_collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs']
+    allowed_collections = ['users', 'vehicles', 'visitor_registrations', 'entry_exit_logs', 'vehicle_pass_applications']
     if collection_name not in allowed_collections:
         raise HTTPException(status_code=400, detail="Invalid collection name")
     
@@ -1086,6 +1222,16 @@ async def create_document(
         "id": document_data['id'],
         "inserted_id": str(result.inserted_id)
     }
+
+# Vehicle Pass Application Routes
+@api_router.post("/vehicle-pass-applications", response_model=VehiclePassApplication)
+async def create_vehicle_pass_application(application_data: VehiclePassApplicationCreate, current_user: dict = Depends(get_current_user)):
+    return await vehicle_pass_app_service.create_application(application_data)
+
+@api_router.get("/vehicle-pass-applications", response_model=List[VehiclePassApplication])
+async def get_vehicle_pass_applications(current_user: dict = Depends(get_current_user)):
+    return await vehicle_pass_app_service.get_all()
+
 app.include_router(api_router)
 
 # Serve uploaded files

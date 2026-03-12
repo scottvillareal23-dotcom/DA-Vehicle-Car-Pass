@@ -16,6 +16,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { 
   Car, 
@@ -46,6 +47,11 @@ const AdminDashboard = () => {
   // Modal state
   const [selectedVisitor, setSelectedVisitor] = useState(null);
   const [isVisitorModalOpen, setIsVisitorModalOpen] = useState(false);
+  
+  // Employee/Vehicle Info Modal state
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [employeeVehicles, setEmployeeVehicles] = useState([]);
+  const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
   
   // New vehicle form state
   const [newVehicle, setNewVehicle] = useState({
@@ -97,6 +103,24 @@ const AdminDashboard = () => {
     return () => clearInterval(interval);
      
   }, []);
+
+  /**
+   * Handle vehicle click in Manage Vehicles tab
+   */
+  const handleVehicleClick = (vehicle) => {
+    const ownerName = vehicle.owner_name;
+    const sameOwnerVehicles = vehicles.filter(v => v.owner_name === ownerName);
+    
+    // Fallback to basic details if new nested fields are missing
+    setSelectedEmployee({
+      name: ownerName,
+      department: vehicle.department || 'N/A',
+      type: vehicle.vehicle_type,
+      ...vehicle.employee_details // Merge in comprehensive details if they exist
+    });
+    setEmployeeVehicles(sameOwnerVehicles);
+    setIsEmployeeModalOpen(true);
+  };
 
   /**
    * Handle new vehicle creation
@@ -413,7 +437,8 @@ const AdminDashboard = () => {
                   {vehicles.map((vehicle) => (
                     <div 
                       key={vehicle.id} 
-                      className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200"
+                      className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200 hover:bg-green-100 cursor-pointer transition-colors"
+                      onClick={() => handleVehicleClick(vehicle)}
                     >
                       <div className="flex items-center space-x-4">
                         <Badge 
@@ -430,14 +455,90 @@ const AdminDashboard = () => {
                           </p>
                         </div>
                       </div>
-                      <div className="text-sm text-gray-500">
-                        Added: {new Date(vehicle.created_at).toLocaleDateString()}
+                      <div className="flex items-center space-x-4 text-sm text-gray-500">
+                        <span className="hidden md:inline">Added: {new Date(vehicle.created_at).toLocaleDateString()}</span>
+                        <div className="flex items-center space-x-1 text-blue-600">
+                          <Eye className="w-4 h-4" />
+                          <span className="font-medium">Details</span>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
+
+            {/* Employee Vehicles Modal */}
+            <Dialog open={isEmployeeModalOpen} onOpenChange={setIsEmployeeModalOpen}>
+              <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center text-xl text-green-700">
+                    <UserPlus className="w-5 h-5 mr-2" />
+                    Employee Details
+                  </DialogTitle>
+                </DialogHeader>
+                
+                {selectedEmployee && (
+                  <div className="space-y-6">
+                    <div className="p-4 bg-gray-50 rounded-lg border">
+                      <h3 className="font-semibold text-lg text-gray-900 border-b pb-2 mb-3">{selectedEmployee.name}</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+                        <div className="space-y-2">
+                          <p><span className="font-medium text-gray-900">Classification:</span> {selectedEmployee.classification || 'N/A'}</p>
+                          <p><span className="font-medium text-gray-900">Status of Employment:</span> {selectedEmployee.status_of_employment || 'N/A'}</p>
+                          <p><span className="font-medium text-gray-900">Official Station:</span> {selectedEmployee.official_station || selectedEmployee.department || 'N/A'}</p>
+                        </div>
+                        <div className="space-y-2">
+                          <p><span className="font-medium text-gray-900">Mobile Number:</span> {selectedEmployee.mobile_number || 'N/A'}</p>
+                          <p><span className="font-medium text-gray-900">Email Address:</span> {selectedEmployee.email_address || 'N/A'}</p>
+                          <p><span className="font-medium text-gray-900">Address:</span> {selectedEmployee.address || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-medium text-gray-800 mb-3 flex items-center">
+                        <Car className="w-4 h-4 mr-2 text-green-600" />
+                        Registered Vehicles ({employeeVehicles.length})
+                      </h4>
+                      <div className="space-y-3">
+                        {employeeVehicles.map((v) => (
+                          <div key={v.id} className="p-4 border rounded-lg bg-green-50 border-green-200">
+                            <div className="flex justify-between items-start mb-3">
+                              <div className="flex items-center space-x-3">
+                                <Badge 
+                                  variant={v.vehicle_type === 'private' ? 'secondary' : 'default'} 
+                                  className={v.vehicle_type === 'company' ? 'bg-green-600' : ''}
+                                >
+                                  {v.plate_number}
+                                </Badge>
+                                <span className="text-sm font-semibold capitalize text-gray-700">
+                                  {v.vehicle_type} Vehicle
+                                </span>
+                              </div>
+                              <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded border">
+                                Added: {new Date(v.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                            
+                            {v.vehicle_details ? (
+                              <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mt-2 bg-white/50 p-2 rounded">
+                                <p><span className="font-medium text-gray-800">Brand:</span> {v.vehicle_details.brand || 'N/A'}</p>
+                                <p><span className="font-medium text-gray-800">Color:</span> {v.vehicle_details.color || 'N/A'}</p>
+                                <p><span className="font-medium text-gray-800">OR Number:</span> {v.vehicle_details.or_number || 'N/A'}</p>
+                                <p><span className="font-medium text-gray-800">CR No:</span> {v.vehicle_details.cr_number || 'N/A'}</p>
+                              </div>
+                            ) : (
+                               <p className="text-xs text-gray-400 mt-2 italic">No detailed vehicle information available.</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* Add Vehicle Tab */}
