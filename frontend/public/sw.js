@@ -1,7 +1,7 @@
 // Service Worker for PWA functionality and offline support
 
-const CACHE_NAME = 'da-vehicle-pass-v2.0.0';
-const API_CACHE = 'da-api-cache-v2.0.0';
+const CACHE_NAME = 'da-vehicle-pass-v2.0.1';
+const API_CACHE = 'da-api-cache-v2.0.1';
 
 // Files to cache for offline use
 const STATIC_CACHE_URLS = [
@@ -78,6 +78,14 @@ async function handleApiRequest(request) {
   
   // For POST requests (registration, scan), always try network first
   if (request.method === 'POST') {
+    let requestData = null;
+    try {
+      // Clone request to read body before fetch consumes it
+      requestData = await request.clone().json();
+    } catch (e) {
+      console.warn('SW: Failed to parse POST request body', e);
+    }
+
     try {
       const response = await fetch(request);
       
@@ -89,7 +97,9 @@ async function handleApiRequest(request) {
         // Store offline data for sync
         if (url.pathname.includes('/visitor-registration') || 
             url.pathname.includes('/scan')) {
-          await storeOfflineData(url.pathname, await request.clone().json(), data);
+          if (requestData) {
+            await storeOfflineData(url.pathname, requestData, data);
+          }
         }
       }
       
@@ -97,7 +107,9 @@ async function handleApiRequest(request) {
     } catch (error) {
       // If network fails, store for later sync
       console.log('SW: Network failed, storing for offline sync');
-      await storeOfflineData(url.pathname, await request.clone().json());
+      if (requestData) {
+        await storeOfflineData(url.pathname, requestData);
+      }
       
       return new Response(JSON.stringify({
         success: true,
@@ -109,6 +121,7 @@ async function handleApiRequest(request) {
       });
     }
   }
+
   
   // For GET requests, try network first, then cache
   try {
