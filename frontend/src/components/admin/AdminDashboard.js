@@ -263,7 +263,15 @@ const AdminDashboard = () => {
                         <div>
                           <p className="font-medium">Inside since: {new Date(status.entry_time).toLocaleString()}</p>
                           <p className="text-sm text-gray-600">
-                            Duration: {status.duration_hours ? `${status.duration_hours.toFixed(1)} hours` : 'N/A'}
+                            Duration: {status.duration_hours ? (
+                              (() => {
+                                const totalSeconds = Math.floor(status.duration_hours * 3600);
+                                const h = Math.floor(totalSeconds / 3600);
+                                const m = Math.floor((totalSeconds % 3600) / 60);
+                                const s = totalSeconds % 60;
+                                return `${h}h ${m}m ${s}s`;
+                              })()
+                            ) : 'N/A'}
                           </p>
                         </div>
                       </div>

@@ -604,6 +604,21 @@ class ScanService:
         is_inside = latest_log['is_inside'] if latest_log else False
         action = LogAction.EXIT if is_inside else LogAction.ENTRY
         
+        # Check for rapid double scans (accidental exit immediately after entry)
+        if action == LogAction.EXIT and latest_log and latest_log.get('timestamp'):
+            last_scan_time = latest_log['timestamp']
+            if isinstance(last_scan_time, str):
+                last_scan_time = datetime.fromisoformat(last_scan_time.replace('Z', '+00:00'))
+            last_scan_time = self.datetime_service.ensure_timezone_aware(last_scan_time)
+            
+            # If the last scan was an entry and occurred less than 2 minutes ago, reject the exit scan
+            time_since_last_scan = (self.datetime_service.now_utc() - last_scan_time).total_seconds()
+            if time_since_last_scan < 120:  # 2 minutes cooldown
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Vehicle entered less than 2 minutes ago. Please wait before scanning for exit."
+                )
+        
         # Create log entry
         log_data = {
             "plate_number": scan_data.plate_number,
