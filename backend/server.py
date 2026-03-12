@@ -304,7 +304,7 @@ class BarcodeService:
     @staticmethod
     def generate_barcode_data(registration: VisitorRegistration) -> str:
         """Generate barcode data for visitor registration"""
-        return f"VISITOR_{registration.plate_number}_{registration.id}"
+        return registration.plate_number
 
 # Repository Classes (Data Access Layer)
 class BaseRepository(ABC):
